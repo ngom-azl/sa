@@ -101,6 +101,85 @@ var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n
 <div class="sticky-cta" role="navigation" aria-label="وسائل التواصل السريعة"><a class="wa" href="https://wa.me/966530975105?text=%D8%A7%D9%84%D8%B3%D9%84%D8%A7%D9%85%20%D8%B9%D9%84%D9%8A%D9%83%D9%85%D8%8C%20%D8%A3%D9%88%D8%AF%20%D8%A7%D9%84%D8%A7%D8%B3%D8%AA%D9%81%D8%B3%D8%A7%D8%B1%20%D8%B9%D9%86%20%D8%AE%D8%AF%D9%85%D8%A7%D8%AA%20%D8%A7%D9%84%D8%B9%D8%B2%D9%84%20%D9%84%D8%AF%D9%89%20%D9%86%D8%AC%D9%88%D9%85%20%D8%A7%D9%84%D8%B9%D8%B2%D9%84." target="_blank" rel="noopener noreferrer" data-action="whatsapp_click" data-position="sticky"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.52 3.48A11.82 11.82 0 0 0 12.12 0C5.54 0 .18 5.34.17 11.91a11.8 11.8 0 0 0 1.6 5.95L.08 24l6.29-1.65a11.9 11.9 0 0 0 5.71 1.46h.01C18.65 23.81 24 18.47 24 11.9c0-3.18-1.24-6.17-3.48-8.42ZM12.09 21.8a9.86 9.86 0 0 1-5.03-1.37l-.36-.21-3.73.98 1-3.63-.24-.37a9.84 9.84 0 0 1-1.5-5.29C2.24 6.43 6.63 2.04 12.12 2.04a9.78 9.78 0 0 1 6.96 2.88 9.8 9.8 0 0 1 2.88 6.98c0 5.48-4.39 9.9-9.87 9.9Zm5.43-7.41c-.3-.15-1.76-.87-2.03-.97s-.47-.15-.66.15-.76.97-.93 1.17-.34.23-.64.08a8.13 8.13 0 0 1-2.39-1.48 8.9 8.9 0 0 1-1.65-2.06c-.17-.3 0-.46.13-.61.14-.13.3-.35.44-.52.15-.18.2-.3.3-.5.1-.2.05-.38-.02-.53s-.66-1.6-.91-2.19c-.24-.57-.49-.49-.66-.5h-.56c-.2 0-.52.08-.79.38s-1.04 1.02-1.04 2.48 1.06 2.87 1.2 3.07 2.08 3.17 5.03 4.45c.7.31 1.25.49 1.67.63.7.22 1.35.19 1.85.12.56-.08 1.76-.72 2.01-1.41.25-.69.25-1.28.17-1.41-.07-.13-.27-.21-.57-.36Z"/></svg> تواصل واتساب</a><a class="tel" href="tel:+966530975105" data-action="phone" data-position="sticky"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72l.43 3a2 2 0 0 1-.57 1.75L7.1 10.3a16 16 0 0 0 6.6 6.6l1.83-1.87a2 2 0 0 1 1.75-.57l3 .43A2 2 0 0 1 22 16.92Z"/></svg> اتصل الآن</a></div>
 <script>
 (function(){
+'use strict';
+// NGOM visit-code feature. This page NEVER fires Contact or InitiateCheckout on a click.
+// Fail-open: if issuer is off or slow, opening WhatsApp still works without a code.
+const FEATURE_ENABLED = true; // Switch to true ONLY after issuer LIVE and DB migration
+const ORIGIN='https://ngom-azl.github.io';
+const PHONE='966530975105', CLIENT_ID='NGOM-AZL-001';
+const PAGE_URL=ORIGIN+'/sa/';
+const ISSUER_URL='https://n8n.srv2034935.hstgr.cloud/webhook/ngom-visit-code-v1';
+const K='ngom_azl_visit_v1';
+const CODE=/^NG-[0-9A-F]{10}$/;
+const TTCLID=/^[A-Za-z0-9._-]{12,512}$/;
+const TTP=/^[A-Za-z0-9._-]{6,256}$/;
+let confirmedCode=null, request=null;
+function getCookieTtp(){try {for(const p of document.cookie.split(';')) {let i=p.indexOf('=');if(i>0&&p.slice(0,i).trim()==='_ttp'){let x=p.slice(i+1).trim();if(TTP.test(x))return x;}}}catch(e){}return null;}
+function validPage(){return location.origin===ORIGIN&&location.pathname==='/sa/';}
+function readVisit(){try{return JSON.parse(sessionStorage.getItem(K)||'{}');}catch(e){return {};}}
+function makeVisit(){
+ const old=readVisit(), params=new URLSearchParams(location.search), ids=params.getAll('ttclid');
+ const click=ids.length===1&&TTCLID.test(ids[0])?ids[0]:null;
+ const ambiguous=ids.length>1 || (ids.length===1&&!click);
+ const stillValid=old.visit_id && typeof old.visit_id==='string'&&/^[a-f0-9-]{36}$/i.test(old.visit_id) && old.created_at && (Date.now()-old.created_at)>=0 && (Date.now()-old.created_at)<7*86400000 && (!old.expires_at || Date.parse(old.expires_at)>Date.now());
+ const same=!!stillValid&&!ambiguous&&(!click||click===old.ttclid);
+ const visit_id=same?old.visit_id:crypto.randomUUID();
+ const ttclid=ambiguous?null:(click||(same&&TTCLID.test(old.ttclid||'')?old.ttclid:null));
+ const v={visit_id,ttclid,created_at:same?old.created_at:Date.now()};
+ try{sessionStorage.setItem(K,JSON.stringify(v));}catch(e){}return v;
+}
+const validEnv=FEATURE_ENABLED&&validPage()&&window.crypto&&typeof crypto.randomUUID==='function';
+const visit=validEnv?makeVisit():null;
+function appendCode(message, code){if(!CODE.test(code||''))return message;return message.replace(/\s*🎁 كود الخصم الخاص بي:\s*NG-[A-F0-9]{10}\s*$/i,'')+'\n\n🎁 كود الخصم الخاص بي: '+code;}
+function codeFromUrl(url,code){
+ try{const u=new URL(url,location.href);if(u.protocol!=='https:'||u.hostname!=='wa.me'||u.pathname!=='/'+PHONE)return url;
+ const original=u.searchParams.get('text')||'السلام عليكم، أريد الاستفسار عن خدمات نجوم العزل.';
+ u.searchParams.set('text',appendCode(original,code));return u.href;
+ }catch(e){return url;}
+}
+function updateLinks(code){document.querySelectorAll('a[data-action="whatsapp_click"]').forEach(a=>{if(CODE.test(code||''))a.href=codeFromUrl(a.href,code);});}
+function issue(){
+ if(!validEnv)return Promise.resolve(null);
+ if(request)return request;
+ const ttp=getCookieTtp();const c=new AbortController();const timeout=setTimeout(()=>c.abort(),5500);
+ request=fetch(ISSUER_URL,{method:'POST',mode:'cors',credentials:'omit',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({client_id:CLIENT_ID,visit_id:visit.visit_id,page_url:PAGE_URL,ttclid:visit.ttclid,ttp}),signal:c.signal})
+ .then(r=>{if(!r.ok)throw Error('issuer unavailable');return r.json();})
+ .then(result=>{
+  const exp=Date.parse(result&&result.expires_at||'');
+  if(result&&result.client_id===CLIENT_ID&&CODE.test(result.code||'')&&Number.isFinite(exp)&&exp>Date.now()){
+    confirmedCode=result.code; updateLinks(confirmedCode);
+    try{sessionStorage.setItem(K,JSON.stringify({...visit,expires_at:result.expires_at}));}catch(e){}
+    return confirmedCode;
+  }return null;
+ }).catch(()=>null).finally(()=>clearTimeout(timeout));return request;
+}
+function waitForCode(){
+ if(confirmedCode)return Promise.resolve(confirmedCode);
+ if(!validEnv)return Promise.resolve(null);
+ const giveUp=new Promise(r=>setTimeout(()=>r(null),3500));
+ return Promise.race([issue(),giveUp]);
+}
+window.NGOM_VISIT_CODE={waitForCode,appendCode};
+// Every regular WhatsApp link, including sticky and service cards.
+document.querySelectorAll('a[data-action="whatsapp_click"]').forEach(a=>{
+ a.addEventListener('click',e=>{
+  if(!validEnv||confirmedCode)return; // default navigation, no client-side conversion
+  e.preventDefault();
+  const fallback=a.href;const tab=window.open('about:blank','_blank'); if(tab)tab.opener=null;
+  waitForCode().then(code=>{
+   const target=code?codeFromUrl(fallback,code):fallback;
+   if(tab&&!tab.closed)tab.location.href=target;else window.location.href=target;
+  });
+ });
+});
+if(validEnv){setTimeout(issue,700);setTimeout(()=>{if(confirmedCode&&!getCookieTtp())return;
+  // Same visit can backfill real _ttp at server only when available after Pixel startup.
+  if(confirmedCode&&getCookieTtp()){request=null;issue();}},2300);}
+})();
+</script>
+
+<script>
+(function(){
   'use strict';
   // The landing page does not report conversion events or count clicks as messages.
   // PageView tracking is in the head; verified Contact events are sent separately from the server-side workflow.
@@ -114,9 +193,14 @@ var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n
     var parts=['السلام عليكم، أريد الاستفسار عن '+service+' من نجوم العزل.'];
     if(city)parts.push('المدينة: '+city);
     if(details)parts.push('تفاصيل الطلب: '+details);
-    var url='https://wa.me/966530975105?text='+encodeURIComponent(parts.join('\n'));
-    var opened=window.open(url,'_blank','noopener,noreferrer');
-    if(!opened)window.location.href=url;
+    var opened=window.open('about:blank','_blank'); if(opened)opened.opener=null;
+    var finish=function(code){
+      var message=parts.join('\n');
+      if(code && window.NGOM_VISIT_CODE)message=window.NGOM_VISIT_CODE.appendCode(message,code);
+      var url='https://wa.me/966530975105?text='+encodeURIComponent(message);
+      if(opened&&!opened.closed)opened.location.href=url;else window.location.href=url;
+    };
+    if(window.NGOM_VISIT_CODE){window.NGOM_VISIT_CODE.waitForCode().then(finish);}else finish(null);
   });
 })();
 </script>
